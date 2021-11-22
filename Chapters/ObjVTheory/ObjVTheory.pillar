@@ -1,4 +1,4 @@
-! ! Un noyau minimal réflexif basé sur les classes
+!! Un noyau minimal réflexif basé sur les classes
 
 ''La différence entre les classes et les objets a été soulignée à plusieurs reprises. Dans la vision présentée ici, ces concepts appartiennent à des mondes différents : le texte du programme ne contient que des classes ; à l'exécution, seuls les objets existent. Cette approche n'est pas la seule. L'une des sous-cultures de la programmation orientée objet, influencée par Lisp et illustrée par Smalltalk, considère les classes comme des objets eux-mêmes, qui ont toujours une existence au moment de l'exécution.'' - B. Meyer, Object-Oriented Software Construction
 
