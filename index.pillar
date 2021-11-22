@@ -1,21 +1,21 @@
-Back in the early 90's, when I was a master student, we learned meta object programming and we were using Common Lisp Object Systems (CLOS) to program.
-I loved the lecture and I realized that it was quite advanced.
-At that time I built a theorem proving system in CLOS.
-However, deep inside me I knew that I did not fully understand what was the class ==Object== or what is really a metaclass; of course, I could repeat the lecture and look smart, but there was this little voice telling me that I wasn't 100\% sure.
-Then by accident I found the article of Pierre Cointe and I was blasted by the simplicity of the model.
-I spent 3 days reimplementing the model like mad because it was too much fun.
-For me it was key to my comprehension of class-based reflective systems.
-Once I finished I went to see my teacher and told her that she must teach it and she told me to do it.
-Since then I'm teaching it.
+Au début des années 90, lorsque j'étais étudiant en master, nous avons appris la méta-programmation objet et nous utilisions Common Lisp Object Systems (CLOS) pour programmer.
+J'ai adoré ce cours et j'ai réalisé qu'il était assez avancé.
+À l'époque, j'ai construit un système de démonstration de théorèmes en CLOS.
+Cependant, au fond de moi, je savais que je ne comprenais pas complètement ce qu'était la classe ==Object== ou ce qu'est réellement une métaclasse ; bien sûr, je pouvais répéter le cours et avoir l'air intelligent, mais il y avait cette petite voix qui me disait que je n'étais pas sûr à 100\%.
+Puis par hasard j'ai trouvé l'article de Pierre Cointe et j'ai été bluffé par la simplicité du modèle.
+J'ai passé 3 jours à réimplémenter le modèle comme un fou parce que c'était trop amusant.
+Pour moi, c'était la clé de ma compréhension des systèmes réflexifs basés sur les classes.
+Une fois que j'ai terminé, je suis allée voir mon professeur et lui ai dit qu'elle devait l'enseigner et elle m'a dit de le faire.
+Depuis lors, je l'enseigne.
 
-Note that while the project is historically named ObjVLisp, it has nothing to do about LISP.
-ObjVlisp is just a little conceptual framework but it provides a condensed view and explains the forces in presence in larger systems such as Pharo that share the ''everything is an object'' mantra I love so much.
-This book explains the consequence of having classes as objects.
-In addition, it describes the design and the consequences of having a self-described reflective minimal kernel.
+Notez que si le projet est historiquement nommé ObjVLisp, il n'a rien à voir avec LISP.
+ObjVlisp n'est qu'un petit framework conceptuel mais il fournit une vue condensée et explique les forces en présence dans des systèmes plus grands comme Pharo qui partagent le mantra ''tout est un objet'' que j'aime tant.
+Ce livre explique la conséquence d'avoir des classes comme objets.
+En outre, il décrit la conception et les conséquences de l'utilisation d'un noyau minimal réfléchi.
 
-Doing so we will learn deeply about objects, object creation instantiation, message lookup, delegation, inheritance and much more.
+Ce faisant, nous apprendrons profondément sur les objets, l'instanciation de la création d'objets, la recherche de messages, la délégation, l'héritage et bien plus encore.
 
-I would like to thank Christopher Fuhrman for his large copy-edit pass and kksubbu and Ren\'e-Paul for their suggestions.
+Je tiens à remercier Christopher Fuhrman pour son important travail de relecture, ainsi que kksubbu et Ren\'e-Paul pour leurs suggestions.
 
 — Stéphane Ducasse
 
@@ -24,34 +24,34 @@ ${inputFile:path=Chapters/ObjVTheory/ObjVTheory.pillar}$
 
 ${inputFile:path=Chapters/ObjV/ObjV.pillar}$
 
-!! Selected definitions
+!! Définitions choisies
 
-Smith was the first to introduce reflection in a programming language with 3Lisp ${cite:ref=Smit84a}$. He defines reflection as:
+Smith a été le premier à introduire la réflexion dans un langage de programmation avec 3Lisp ${cite:ref=Smit84a}$. Il définit la réflexion comme suit
 
-- An entity's integral ability to represent, operate on, and otherwise deal with itself in the same way that it represents, operates on and deals with its primary subject matter.
+- La capacité intégrale d'une entité à se représenter, à opérer et à se traiter de la même manière qu'elle représente, opère et traite son sujet principal.
 
-In the context of meta-object protocols, Bobrow ${cite:ref=Bobr93a}$  refines the definition as follows:
+Dans le contexte des protocoles de méta-objets, Bobrow ${cite:ref=Bobr93a}$ affine la définition comme suit :
 
-- Reflection is the ability of a program to manipulate as data something representing the state of the program during its own execution. There are two aspects of such manipulation: ''introspection'' and ''intercession'' (...) Both aspects require a mechanism for encoding execution state as data; providing such an encoding is called ''reification''.
+- La réflexion est la capacité d'un programme à manipuler comme données quelque chose représentant l'état du programme pendant sa propre exécution. Il y a deux aspects d'une telle manipulation : ''introspection'' et ''intercession'' (...) Les deux aspects nécessitent un mécanisme pour encoder l'état d'exécution en tant que données ; fournir un tel encodage est appelé ''réification''.
 
 
-Maes proposed some definitions for reflexive programming ${cite:ref=Maes87b}$:
+Maes a proposé quelques définitions pour la programmation réflexive ${cite:ref=Maes87b}$:
 
-- A ''computational system'' is something that ''reasons'' about and ''acts'' upon some part of the world, called the ''domain'' of the system.
+- Un ''système informatique'' est quelque chose qui ''raisonne'' sur et ''agit'' sur une partie du monde, appelée ''domaine'' du système.
 
-- A computational system may also be ''causally connected'' to its domain. This means that the system and its domain are linked in such a way that if one of the two changes, this leads to an effect upon the other.
+- Un système de calcul peut également être "connecté de manière causale" à son domaine. Cela signifie que le système et son domaine sont liés de telle sorte que si l'un des deux change, cela entraîne un effet sur l'autre.
 
-- A ''meta-system'' is a computational system that has as its domain another computational system, called its ''object-system''. (...) A meta-system has a representation of its object-system in its data. Its program specifies ''meta-computation'' about the object-system and is therefore called a ''meta-program''.
+- Un ''méta-système'' est un système de calcul qui a pour domaine un autre système de calcul, appelé ''système-objet''. (...) Un méta-système a une représentation de son système-objet dans ses données. Son programme spécifie le ''méta-calcul'' sur le système-objet et est donc appelé ''méta-programme''.
 
-- ''Reflection'' is the process of reasoning about and/or acting upon oneself.
+- La ''réflexion'' est le processus de raisonnement et/ou d'action sur soi.
 
-- A ''reflective system'' is a causally connected meta-system that has as object-system itself. The data of a reflective system contain, besides the representation of some part of the external world, also a causally connected representation of itself, called ''self-representation'' of the system. [...] When a system is reasoning or acting upon itself, we speak of ''reflective computation''.
+- Un ''système réflexif'' est un méta-système relié causalement qui a pour objet le système lui-même. Les données d'un système réflexif contiennent, en plus de la représentation d'une partie du monde extérieur, une représentation causalement connectée de lui-même, appelée ''auto-représentation'' du système. [...] Lorsqu'un système raisonne ou agit sur lui-même, on parle de ''calcul réflexif''.
 
-- A language with a ''reflective architecture'' is a language in which all systems have access to a causally connected representation of themselves.
+- Un langage avec une ''architecture réflexive'' est un langage dans lequel tous les systèmes ont accès à une représentation causale d'eux-mêmes.
 
-- A programming environment has a ''meta-level architecture'' if it has an architecture which supports meta-computation, without supporting reflective computation.
+- Un environnement de programmation a une ''architecture de méta-niveau'' s'il a une architecture qui supporte le méta-calcul, sans supporter le calcul réflexif.
 
-- The ''meta-object'' of an object X represents the explicit information about X (e.g. about its behavior and its implementation). The object X itself groups the information about the entity of domain it represents.
+- Le ''méta-objet'' d'un objet X représente les informations explicites sur X (par exemple, sur son comportement et son implémentation). L'objet X lui-même regroupe les informations sur l'entité du domaine qu'il représente.
 
 {{{latex:
 \bibliographystyle{alpha}
