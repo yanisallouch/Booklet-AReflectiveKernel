@@ -1,40 +1,40 @@
-!!Building a minimal reflective class-based kernel
+!!Construction d'un noyau minimal réflexif basé sur des classes
 
-The objective of this chapter is to help you to implement step by step the ObjVlisp model explained in the previous chapter.
-ObjVlisp was designed by Pierre Cointe, who got inspired by the kernel of Smalltalk-78. It has explicit metaclasses and it is composed of two classes ==Object== and ==Class==.
+L'objectif de ce chapitre est de vous aider à implémenter pas à pas le modèle ObjVlisp expliqué dans le chapitre précédent.
+ObjVlisp a été conçu par Pierre Cointe, qui s'est inspiré du noyau de Smalltalk-78. Il possède des métaclasses explicites et il est composé de deux classes ==Object== et ==Class==.
 
-!!! Objectives
-During the previous chapter, you saw the main points of the ObjVLisp model, now you will implement it.
-The goals of this implementation are to give a concrete understanding of the concepts presented previously.
-Here are some of the points you can deeply understand while writing the implementation:
+!!! Objectifs
+Au cours du chapitre précédent, vous avez vu les points principaux du modèle ObjVLisp, maintenant vous allez l'implémenter.
+Les objectifs de cette implémentation sont de donner une compréhension concrète des concepts présentés précédemment.
+Voici quelques points que vous pourrez approfondir en écrivant l'implémentation :
 
-- What is a possible object structure?
-- What is object  allocation and initialization?
-- What is class initialization?
-- What the semantics of the method lookup?
-- What is a reflective kernel?
-- What are the roles of the classes ==Class== and ==Object==?
-- What is the role of a metaclass?
+- Quelle est la structure possible d'un objet ?
+- Qu'est-ce que l'allocation et l'initialisation des objets ?
+- Qu'est-ce que l'initialisation des classes ?
+- Quelle est la sémantique de la méthode lookup ?
+- Qu'est-ce qu'un noyau réflexif ?
+- Quels sont les rôles des classes ==Class== et ==Object== ?
+- Quel est le rôle d'une métaclasse ?
 
-!!!Preparation
-In this section we discuss the set up that you will use, the implementation choices and the conventions that we will follow during all this chapter.
+!!!Préparation
+Dans cette section, nous discutons de la configuration que vous allez utiliser, des choix d'implémentation et des conventions que nous allons suivre tout au long de ce chapitre.
 
-!!!!Getting Pharo
-You need to download and install Pharo from *http://www.pharo.org/*. You need a virtual machine, and the couple image and changes. You can use *http://get.pharo.org* to get a script to download Pharo.
+!!!!La mise en place de Pharo
+Vous devez télécharger et installer Pharo à partir de *https://pharo.org/*. Vous avez besoin d'une machine virtuelle, de l'image du couple et des modifications. Vous pouvez utiliser *https://get.pharo.org* pour obtenir un script de téléchargement de Pharo.
 
-The current version that you can use is Pharo 7.0.
+La version actuelle que vous pouvez utiliser est Pharo 7.0.
 
 [[[
 wget -O- get.pharo.org/70+vm | bash
 ]]]
 
-You can use the book Pharo by Example from *http://www.pharo.org/PharoByExample/* for an overview of the syntax and the system.
+Vous pouvez utiliser le livre Pharo Par l'Example sur *https://books.pharo.org/pharo-by-example/* pour une vue d'ensemble de la syntaxe et du système.
 
 
-!!!! Getting infrastructure definitions
-All the necessary definitions are provided as a Monticello package. It contains all the classes, the method categories and the method signatures of the methods that you have to implement. It provides additional functionality such as a dedicated inspector and some extra methods that will make your life easy and help you to concentrate on the essence of the model. It contains also all the tests of the functionality you have to implement.
+!!!! Obtenir les définitions de l'infrastructure
+Toutes les définitions nécessaires sont fournies sous la forme d'un paquet Monticello. Il contient toutes les classes, les catégories de méthodes et les signatures des méthodes que vous devez implémenter. Il fournit des fonctionnalités supplémentaires telles qu'un inspecteur dédié et quelques méthodes supplémentaires qui vous faciliteront la vie et vous aideront à vous concentrer sur l'essence du modèle. Il contient également tous les tests des fonctionnalités que vous devez implémenter.
 
-To load the code, execute the following expression:
+Pour charger le code, exécutez l'expression suivante :
 
 [[[
 Metacello new
@@ -43,8 +43,8 @@ Metacello new
   load
 ]]]
 
-%Alternatively, to load the code, open a monticello browser, add a file repository to point to the ObjVLispSkeleton project under ==StephaneDucasse== at *http://www.smalltalkhub.com*.
-%Use the following expression in the smalltalkhub repository creation pop up, then select the latest file and load it.
+%Alternativement, pour charger le code, ouvrez un navigateur monticello, ajoutez un fichier repository pour pointer vers le projet ObjVLispSkeleton sous ==StephaneDucasse== à *http://www.smalltalkhub.com*.
+%Utiliser l'expression suivante dans la pop up de création de dépôt de smalltalkhub, puis sélectionner le dernier fichier et le charger.
 
 %[[[
 %MCSmalltalkhubRepository
@@ -54,111 +54,111 @@ Metacello new
 %    password: ''
 %]]]
 
-!!!! Running tests
-For each functionality you will have to run some tests.
+!!!! Exécution des tests
+Pour chaque fonctionnalité, vous devrez exécuter des tests.
 
-For example to run a particular test named ==testPrimitiveStructure==,
-- evaluate the expression ==(ObjTest selector: #testPrimitiveStructure) run==, or
-- click on the icon of the method named ==testPrimitiveStructure==.
+Par exemple, pour exécuter un test particulier nommé ==testPrimitiveStructure==,
+- évaluez l'expression ==(ObjTest selector : #testPrimitiveStructure) run==, ou bien
+- cliquez sur l'icône de la méthode nommée ==testPrimitiveStructure==.
 
-Note that since you are developing the kernel, to test it we implemented manually some mocks of the classes and kernel. This is the setup method of the test classes that build this fake kernel. Now pay attention because the setups are often taking shortcuts, so do not copy them blindly.
-
-
-
-!!! Naming conventions
-We use the following conventions: we name as ''primitives'' all the Pharo methods that participate in the building of ObjVLisp. These primitives are mainly implemented as methods of the class ==Obj==. Note that in a Lisp implementation such primitives would be just lambda expressions, in a C implementation such primitives would be represented by C functions.
-
-To help you to distinguish between classes in the implementation language (Pharo) and the ObjVLisp model, we prefix  all the ObjVLisp classes by ==Obj==. Finally, some of the crucial and confusing primitives (mainly the class structure ones) are all prefixed by ==obj==. For example the primitive that given an ''objInstance'' returns its class identifier is named ==objClassId==.
-We also talk about objInstances, objObjects and objClasses to refer to
-specific instances, objects or classes defined in ObjVLisp.
-
-!!! Inheriting from class Array
-
-We do not want to implement a scanner, a parser and a compiler for ObjVLisp but concentrate on the essence of the language. That's why we chose to use as much as possible the implementation language, here Pharo. As Pharo does not support macro definition, we will use as much as possible the existing classes to avoid extra syntactic problems.
+Notez que puisque vous êtes en train de développer le noyau, pour le tester nous avons implémenté manuellement quelques mocks des classes et du noyau. C'est la méthode de configuration des classes de test qui construisent ce faux noyau. Maintenant, faites attention car les configurations prennent souvent des raccourcis, donc ne les copiez pas aveuglément.
 
 
-In our implementation, every object in the ObjVLisp world is instance of the class ==Obj==.
-The class ==Obj== is a subclass of ==Array==.
 
-Since ==Obj== is a subclass of ==Array==, ==#(#ObjPoint 10 15)== is an objInstance of the class ==ObjPoint== which is also an array instance of the Pharo class ==ObjClass==.
+!!! Conventions de nommage
+Nous utilisons les conventions suivantes : nous nommons ''primitives'' toutes les méthodes Pharo qui participent à la construction d'ObjVLisp. Ces primitives sont principalement implémentées comme des méthodes de la classe ==Obj==. Notez que dans une implémentation Lisp de telles primitives seraient juste des expressions lambda, dans une implémentation C de telles primitives seraient représentées par des fonctions C.
 
-As we will see:
-- ==#(#ObjPoint 10 15)== represents an objPoint (10,15). It is an objInstance of the class ==ObjPoint==.
-- ==#(#ObjClass #ObjPoint #ObjObject #(class x y) #(:x :y) nil )== is the array that represents the objclass  ==ObjPoint==.
+Pour vous aider à faire la distinction entre les classes dans le langage d'implémentation (Pharo) et le modèle ObjVLisp, nous préfixons toutes les classes ObjVLisp par ==Obj==. Enfin, certaines des primitives cruciales et déroutantes (principalement celles de la structure de classe) sont toutes préfixées par ==obj==. Par exemple, la primitive qui renvoie l'identifiant de classe d'une ''objInstance'' est nommée ==objClassId==.
+Nous parlons également d'objInstances, d'objObjects et d'objClasses pour faire référence aux
+instances, objets ou classes spécifiques définis dans ObjVLisp.
 
-!!!! About representation choices
-You can skip this discussion in a first reading. We could have implemented ObjVLisp functionality at the class level of a class named ==Obj== inheriting simply from ==Object==. However, to use the ObjVlisp primitive (a Pharo method) ==objInstanceVariableValue: anObject for: anInstanceVariable== that returns the value of the instance variable in ==anObject==, we would have been forced to write the following expression:
+!!! Hériter de la classe Array
+
+Nous ne voulons pas implémenter un scanner, un parseur et un compilateur pour ObjVLisp mais nous concentrer sur l'essence du langage. C'est pourquoi nous avons choisi d'utiliser autant que possible le langage d'implémentation, ici Pharo. Comme Pharo ne supporte pas la définition de macro, nous utiliserons autant que possible les classes existantes pour éviter des problèmes syntaxiques supplémentaires.
+
+
+Dans notre implémentation, chaque objet dans le monde ObjVLisp est une instance de la classe ==Obj==.
+La classe ==Obj== est une sous-classe de ==Array==.
+
+Puisque ==Obj== est une sous-classe de ==Array==, ==#(#ObjPoint 10 15)== est une objInstance de la classe ==ObjPoint== qui est aussi une instance de array de la classe Pharo ==ObjClass==.
+
+Comme nous allons le voir :
+- ==#(#ObjPoint 10 15)== représente un objPoint (10,15). C'est une objInstance de la classe ==ObjPoint==.
+- ==#(#ObjClass #ObjPoint #ObjObject #(class x y) #(:x :y) nil )== est le tableau qui représente l'objclass ==ObjPoint==.
+
+!!!! À propos des choix de représentation
+Vous pouvez sauter cette discussion lors d'une première lecture. Nous aurions pu implémenter la fonctionnalité ObjVLisp au niveau d'une classe nommée ==Obj== héritant simplement de ==Object==. Cependant, pour utiliser la primitive ObjVlisp (une méthode Pharo) ==objInstanceVariableValue : anObject for : anInstanceVariable== qui renvoie la valeur de la variable d'instance dans ==anObject==, nous aurions été obligés d'écrire l'expression suivante :
 
 [[[
 Obj objInstanceVariableValue: 'x' for: aPoint
 ]]]
 
-We chose to represent any ObjVLisp object by an array and to define the ObjVLisp functionality in the instance side of the class ==Obj== (a subclass of ==Array==). That way we can write in a more natural and readable way  the previous functionality as:
+Nous avons choisi de représenter tout objet ObjVLisp par un tableau et de définir la fonctionnalité ObjVLisp dans le côté instance de la classe ==Obj== (une sous-classe de ==Array==). De cette façon, nous pouvons écrire de manière plus naturelle et plus lisible la fonctionnalité précédente comme suit :
 
 [[[
 aPoint objInstanceVariableValue: 'x'.
 ]]]
 
-!!! Facilitating objclass class access
+!!! Faciliter l'accès à la classe objclass
 
-We need a way to store and access ObjVLisp classes. As a
-solution, on the class level of the Pharo class ==Obj== we defined a
-dictionary holding the defined classes. This dictionary acts as the namespace for our language. We defined the following methods to store and access defined classes.
+Nous avons besoin d'un moyen de stocker et d'accéder aux classes ObjVLisp. Comme
+solution, au niveau de la classe Pharo ==Obj== nous avons défini un
+dictionnaire contenant les classes définies. Ce dictionnaire fait office d'espace de noms pour notre langage. Nous avons défini les méthodes suivantes pour stocker et accéder aux classes définies.
 
-- ==declareClass: anObjClass== stores the objInstance ==anObjClass== given as argument in the class repository (here a dictionary whose keys are the class names and values the ObjVLisp classes themselves).
+- ==declareClass: anObjClass== stocke l'objInstance ==anObjClass== donnée en argument dans le référentiel de classes (ici un dictionnaire dont les clés sont les noms de classes et les valeurs les classes ObjVLisp elles-mêmes).
 
-- ==giveClassNamed: aSymbol== returns  the ObjVLisp class  named ==aSymbol== if it exists. The class should have been declared previously.
+- ==giveClassNamed: aSymbol== renvoie la classe ObjVLisp nommée ==aSymbol== si elle existe. La classe doit avoir été déclarée auparavant.
 
-With such methods we can write code like the following one that looks for the class of the class ==ObjPoint==.
+Avec de telles méthodes, nous pouvons écrire du code comme le suivant qui recherche la classe de la classe ==ObjPoint==.
 
 [[[testcase=true
 Obj giveClassNamed: #ObjPoint
 >>> #(#ObjClass 'ObjPoint' #ObjObject #(class x y) #(:x :y) ... )
 ]]]
 
-To make class access less heavy, we also implemented a shortcut:
-We trap messages not understood sent to ==Obj== and look into the defined class dictionary.
-Since ==ObjPoint== is an unknown message, this same code is then written as:
+Pour rendre l'accès aux classes moins lourd, nous avons également implémenté un raccourci :
+Nous piégeons les messages non compris envoyés à ==Obj== et consultons le dictionnaire des classes définies.
+Puisque ==ObjPoint== est un message inconnu, ce même code est alors écrit comme :
 
 [[[testcase=true
 Obj ObjPoint
 >>> #(#ObjClass 'ObjPoint' #ObjObject #(class x y) #(:x :y) ... )
 ]]]
 
-Now you are ready to start.
+Maintenant vous êtes prêt à commencer.
 
 
-!!! Structure and primitives
+!!! Structure et primitives
 
-The first issue is how to represent objects. We have to agree on an initial representation. In this implementation we chose to represent the objInstances as arrays (instances of ==Obj== a subclass of ==Array==). In the following we use the terms array for talking about instances of the class ==Obj==.
+La première question est de savoir comment représenter les objets. Nous devons nous mettre d'accord sur une représentation initiale. Dans cette implémentation, nous avons choisi de représenter les objInstances comme des tableaux (instances de ==Obj== une sous-classe de ==Array==). Dans ce qui suit, nous utilisons le terme tableau pour parler des instances de la classe ==Obj==.
 
-!!!! Your job.
-Check that the class ==Obj== exists and inherits from ==Array==.
+!!!! Votre travail.
+Vérifiez que la classe ==Obj== existe et hérite de ==Array==.
 
-!!! Structure of a class
-The first object that we will create is the class ==ObjClass==. Therefore we
-focus now on the minimal structure of the classes in our language.
+!!! Structure d'une classe
+Le premier objet que nous allons créer est la classe ==ObjClass==. Par conséquent, nous nous
+nous concentrons maintenant sur la structure minimale des classes de notre langage.
 
-An objInstance representing a class has the following structure: an identifier to its class, a name, an identifier to its superclass (we limit the model to single inheritance), a list of instance variables, a list of initialization keywords, and a method dictionary.
+Une objInstance représentant une classe a la structure suivante : un identifiant de sa classe, un nom, un identifiant de sa superclasse (nous limitons le modèle à l'héritage simple), une liste de variables d'instance, une liste de mots-clés d'initialisation, et un dictionnaire de méthodes.
 
-For example the class ==ObjPoint== has then the following structure:
+Par exemple la classe ==ObjPoint== a donc la structure suivante :
 
 [[[
 #(#ObjClass #ObjPoint #ObjObject #(class x y) #(:x :y) nil)
 ]]]
 
 
-It means that ==ObjPoint== is an instance of ==ObjClass==, is named ==#ObjPoint==, inherits from a class named ==ObjObject==, has three instance variables, two initialization keywords and an uninitialized method dictionary. To access this structure we define some primitives as shown in Figure *@fig:structure*.
-Figure *@fig:offset* shows how offsets are used to access in an controlled manner the raw objClass information.
+Cela signifie que ==ObjPoint== est une instance de ==ObjClass==, est nommé ==#ObjPoint==, hérite d'une classe nommée ==ObjObject==, possède trois variables d'instance, deux mots-clés d'initialisation et un dictionnaire de méthodes non initialisées. Pour accéder à cette structure, nous définissons quelques primitives comme le montre la figure *@fig:structure*.
+La figure *@fig:offset* montre comment les offsets sont utilisés pour accéder de manière contrôlée aux informations brutes de objClass.
 
-+Class structure representation.>file://figures/ClassRepresentationAsArray.pdf|width=60|label=fig:structure+
++Représentation de la structure de la classe.>file://figures/ClassRepresentationAsArray.pdf|width=60|label=fig:structure+
 
-+Using offset to access information.>file://figures/AccessObjName.pdf|width=60|label=fig:offset+
++Utilisation du décalage pour accéder à l'information.>file://figures/AccessObjName.pdf|width=60|label=fig:offset+
 
 
-!!!! Your job.
+!!!! Votre travail.
 
- The test methods of the class ==RawObjTest== that are in the categories =='step1-tests-structure of objects'== and =='step2-tests-structure of classes'== give some examples of structure accesses.
+ Les méthodes de test de la classe ==RawObjTest== qui sont dans les catégories =='step1-tests-structure of objects'== et =='step2-tests-structure of classes'== donnent quelques exemples d'accès à la structure.
 
 [[[
 RawObjTest >> testPrimitiveStructureObjClassId
@@ -175,35 +175,35 @@ RawObjTest >> testPrimitiveStructureObjIVs
 ]]]
 
 
-Implement the primitives that are missing to run the following tests ==testPrimitiveStructureObjClassId==,
+Implémentez les primitives manquantes pour exécuter les tests suivants ==testPrimitiveStructureObjClassId==,
  ==testPrimitiveStructureObjIVs==, ==testPrimitiveStructureObjKeywords==,
  ==testPrimitiveStructureObjMethodDict==, ==testPrimitiveStructureObjName==, and ==testPrimitiveStructureObjSuperclassId==.
 
-You can execute them by selecting the following expression ==(RawObjTest selector:
- #testPrimitiveStructureObjClassId) run==.  Note that arrays start at 1 in Pharo. Below is the list of the primitives that you should implement.
+Vous pouvez les exécuter en sélectionnant l'expression suivante ==(RawObjTest selector :
+ #testPrimitiveStructureObjClassId) run==. Notez que les tableaux commencent à 1 dans Pharo. Vous trouverez ci-dessous la liste des primitives que vous devez implémenter.
 
-Implement in protocol =='object structure primitives'== the primitives that manage:
-- the class of the instance represented  as a symbol. ==objClassId==, ==objClassId: aSymbol==. The receiver is an ==objObject==. This means that this primitive  can be applied on any objInstances to get its class identifier.
+Implémentez dans le protocole =='object structure primitives'== les primitives qui gèrent :
+- la classe de l'instance représentée par un symbole. ==objClassId==, ==objClassId : aSymbol==. Le receveur est un ==objObject==. Cela signifie que cette primitive peut être appliquée sur n'importe quel objInstance pour obtenir son identifiant de classe.
 
-Implement in protocol =='class structure primitives'== the primitives that manage:
-- the class name: ==objName==, ==objName: aSymbol==. The receiver is an objClass.
-- the superclass: ==objSuperclassId==, ==objSuperclassId: aSymbol==. The receiver is an objClass.
-- the instance variables: ==objIVs==, ==objIVs: anOrderedCollection==. The receiver is an objClass.
-- the keyword list: ==objKeywords==, ==objKeywords: anOrderedCollection==. The receiver is an objClass.
-- the method dictionary: ==objMethodDict==, ==objMethodDict: anIdentityDictionary==. The receiver is an objClass.
-
-
+Implémenter dans le protocole =='class structure primitives'== les primitives qui gèrent :
+- le nom de la classe : ==objName==, ==objName : aSymbol==. Le receveur est un objClass.
+- la superclasse : ==objSuperclassId==, ==objSuperclassId : aSymbol==. Le receveur est un objClass.
+- les variables d'instance : ==objIVs==, ==objIVs : anOrderedCollection==. Le receveur est un objClass.
+- la liste des mots-clés : ==objKeywords==, ==objKeywords : anOrderedCollection==. Le receveur est un objClass.
+- le dictionnaire de méthodes : ==objMethodDict==, ==objMethodDict : anIdentityDictionary==. Le receveur est un objClass.
 
 
 
-!!! Finding the class of an object
-Every object keeps the identifier of its class (its name). For example an instance of ==ObjPoint== has then the following structure: ==#(#ObjPoint 10 15)== where ==#ObjPoint== is a symbol identifying  the class ==ObjPoint==.
 
-!!!! Your job.
 
-Using the primitive ==giveClassNamed: aSymbol== defined at the class level of Obj, define the primitive ==objClass== in the protocol =='object-structure primitive'== that returns the objInstance that represents its class (classes are objects too in ObjVLisp).
+!!! Trouver la classe d'un objet
+Chaque objet conserve l'identifiant de sa classe (son nom). Par exemple, une instance de ==ObjPoint== a alors la structure suivante : ==#(#ObjPoint 10 15)== où ==#ObjPoint== est un symbole identifiant la classe ==ObjPoint==.
 
-Make sure that you execute the test method: ==testClassAccess==
+!!!! Votre travail.
+
+En utilisant la primitive ==giveClassNamed : aSymbol== définie au niveau de la classe Obj, définissez la primitive ==objClass== dans le protocole =='object-structure primitive'== qui renvoie l'objInstance qui représente sa classe (les classes sont aussi des objets dans ObjVLisp).
+
+Assurez-vous que vous exécutez la méthode de test : ==testClassAccess==
 
 [[[
 RawObjTest >> testClassAccess
@@ -212,15 +212,15 @@ RawObjTest >> testClassAccess
    self assert: (aPoint objClass = pointClass)
 ]]]
 
-Now we will be ready to manipulate objInstances via proper API. We will now use the class ==ObjTest== for more elaborated tests.
+Nous sommes maintenant prêts à manipuler les objInstances via l'API appropriée. Nous allons maintenant utiliser la classe ==ObjTest== pour des tests plus élaborés.
 
 
-!!! Accessing object instance variable values
+!!! Accès aux valeurs des variables d'instance des objets
 
-+Instance variable offset asked to the class.>file://figures/offsetFromClass.pdf|width=60|label=fig:offset2+
++Décalage de la variable d'instance demandé à la classe.>file://figures/offsetFromClass.pdf|width=60|label=fig:offset2+
 
-!!!! A first simple method.
-The following test illustrate the behavior of the message ==offsetFromClassOfInstanceVariable:==
+!!!! Une première méthode simple.
+Le test suivant illustre le comportement du message ==offsetFromClassOfInstanceVariable:==.
 
 [[[
 ObjTest >> testIVOffset
@@ -230,18 +230,18 @@ ObjTest >> testIVOffset
    self assert: ((pointClass offsetFromClassOfInstanceVariable: #lulu) = 0)
 ]]]
 
-!!!! Your job.
-In the protocol =='iv management'== define a method called ==offsetFromClassOfInstanceVariable: aSymbol== that returns the offset of the instance variable represented by the symbol given in parameter. It returns 0 if the variable is not defined. Look at the tests ==#testIVOffset== of the class ==ObjTest==.
+!!!! Votre travail.
+Dans le protocole =='iv management'== définissez une méthode appelée ==offsetFromClassOfInstanceVariable : aSymbol== qui renvoie le décalage de la variable d'instance représentée par le symbole donné en paramètre. Elle renvoie 0 si la variable n'est pas définie. Consultez les tests ==#testIVOffset== de la classe ==ObjTest==.
 
-Hints: Use the Pharo method ==indexOf:==. Pay attention that such a primitive is applied to an objClass as shown in the test.
+Conseils : Utilisez la méthode Pharo ==indexOf:==. Faites attention à ce qu'une telle primitive soit appliquée à une objClass comme indiqué dans le test.
 
-Make sure that you execute the test method: ==testIVOffset==
+Assurez-vous que vous exécutez la méthode de test : ==testIVOffset==.
 
-+Instance variable offset asked to the instance itself.>file://figures/offsetFromObject.pdf|width=60|label=fig:offset3+
++L'offset de la variable d'instance demandé à l'instance elle-même.>file://figures/offsetFromObject.pdf|width=60|label=fig:offset3+
 
-!!!! A second simple method.
+!!!! Une deuxième méthode simple.
 
-The following test illustrates the expected behavior
+Le test suivant illustre le comportement attendu
 
 [[[
 ObjTest >> testIVOffsetAndValue
@@ -252,26 +252,26 @@ ObjTest >> testIVOffsetAndValue
 ]]]
 
 
-!!!! Your job.
-Using the previous method, define in the protocol =='iv management'==:
-# the method ==offsetFromObjectOfInstanceVariable: aSymbol== that returns the offset of the instance variable. Note that this time the method is applied to an objInstance presenting an instance and not a class (as shown in Figure *@fig:offset3*).
-# the method ==valueOfInstanceVariable: aSymbol== that returns the value of this instance variable in the given object as shown in the test below.
+!!!! Votre travail.
+En utilisant la méthode précédente, définissez dans le protocole =='iv management'== :
+# la méthode ==offsetFromObjectOfInstanceVariable : aSymbol== qui retourne le décalage de la variable d'instance. Notez que cette fois-ci la méthode est appliquée à une objInstance présentant une instance et non une classe (comme le montre la figure *@fig:offset3*).
+# la méthode ==valueOfInstanceVariable : aSymbol== qui retourne la valeur de cette variable d'instance dans l'objet donné comme le montre le test ci-dessous.
 
-Note that for the method ==offsetFromObjectOfInstanceVariable:== you can check that the instance variable exists in the class of the object and else raise an error using the Pharo method ==error:==.
+Notez que pour la méthode ==offsetFromObjectOfInstanceVariable:==, vous pouvez vérifier que la variable d'instance existe dans la classe de l'objet et, sinon, soulever une erreur en utilisant la méthode Pharo ==error:==.
 
-Make sure that you execute the test method: ==testIVOffsetAndValue== and it passes.
+Assurez-vous que vous exécutez la méthode de test : ==testIVOffsetAndValue== et qu'elle passe.
 
 
-!!! Object allocation and initialization
+!!! Allocation et initialisation des objets
 
-The creation of an object is the composition of two elementary operations: its ''allocation'' and its ''initialization''.
-We now define the primitives that allow us to allocate and initialize an object. Remember that:
-- allocation is a class method that returns a nearly empty structure, nearly empty because the instance represented by the structure should at least know its class, and
-- initialization is an instance method that given a newly allocated instance and a list of initialization arguments fill the instance.
+La création d'un objet est la composition de deux opérations élémentaires : son ''allocation'' et son ''initialisation''.
+Nous définissons maintenant les primitives qui nous permettent d'allouer et d'initialiser un objet. Rappelons que
+- l'allocation est une méthode de classe qui retourne une structure presque vide, presque vide car l'instance représentée par la structure doit au moins connaître sa classe, et que
+- l'initialisation est une méthode d'instance qui, étant donné une instance nouvellement allouée et une liste d'arguments d'initialisation, remplit l'instance.
 
-!!!! Instance allocation
+!!!! Allocation d'instance
 
-As shown in the class ==ObjTest==, if the class ==ObjPoint== has two instance variables: ==ObjPoint allocateAnInstance== returns ==#(#ObjPoint nil nil)==.
+Comme le montre la classe ==ObjTest==, si la classe ==ObjPoint== possède deux variables d'instance : ==ObjPoint allocateAnInstance== renvoie ==#(#ObjPoint nil nil)==.
 
 [[[
 ObjTest >> testAllocate
@@ -286,21 +286,21 @@ ObjTest >> testAllocate
 ]]]
 
 
-!!!! Your job.
-In the protocol =='instance allocation'== implement the primitive called ==allocateAnInstance== that sent to an ''objClass'' returns a new instance whose instance variable values are nil and whose objClassId represents the objClass.
+!!!! Votre travail.
+Dans le protocole =='instance allocation'== implémentez la primitive appelée ==allocateAnInstance== qui envoyée à un ''objClass'' retourne une nouvelle instance dont les valeurs des variables d'instance sont nil et dont l'objClassId représente l'objClass.
 
 
-Make sure that you execute the test method: ==testAllocate==
+Assurez-vous que vous exécutez la méthode de test : ==testAllocate==.
 
-!!! Keywords primitives
+!!! Primitives de mots-clés
 
-The original implementation of ObjVLisp uses the facility offered by the Lisp keywords to ease the specification of the instance variable values during instance creation. It also  provides an uniform and unique way to create objects.
-We have to implement some functionality to support keywords. However
-as this is not really interesting that you lose time we give you
-all the necessary primitives.
+L'implémentation originale d'ObjVLisp utilise la facilité offerte par les mots-clés Lisp pour faciliter la spécification des valeurs des variables d'instance pendant la création de l'instance. Elle fournit également un moyen uniforme et unique de créer des objets.
+Nous devons implémenter certaines fonctionnalités pour supporter les mots-clés. Cependant,
+, comme ce n'est pas vraiment intéressant et que vous perdez du temps, nous vous donnons
+toutes les primitives nécessaires.
 
-!!!! Your job.
-All the functionality for managing the keywords are defined into the protocol =='keyword management'==. Read the code and the associated test called ==testKeywords== in the class ==ObjTest==.
+!!!! Votre travail.
+Toutes les fonctionnalités pour gérer les mots-clés sont définies dans le protocole =='keyword management'==. Lisez le code et le test associé appelé ==testKeywords== dans la classe ==ObjTest==.
 
 [[[
 ObjTest >> testKeywords
@@ -324,14 +324,14 @@ ObjTest >> testKeywords
          = #(35 nil 22 35))
 ]]]
 
-Make sure that you execute the test method: ==testKeywords== and that it passes.
+Assurez-vous que vous exécutez la méthode de test : ==testKeywords== et qu'elle passe.
 
-!!! Object initialization
-Once an object is allocated, it may be initialized by the programmer by specifying a list of initialization values. We can represent such a list by an array containing alternatively
-a keyword and a value like ==#(#toto 33 #x 23)== where 33 is associated with ==#toto== and 23 with ==#x==.
+!!! Initialisation des objets
+Une fois qu'un objet est alloué, il peut être initialisé par le programmeur en spécifiant une liste de valeurs d'initialisation. On peut représenter une telle liste par un tableau contenant alternativement
+un mot-clé et une valeur comme ==#(#toto 33 #x 23)== où 33 est associé à ==#toto== et 23 à ==#x==.
 
-!!!! Your job.
-Read in the protocol =='instance initialization'== the primitive ==initializeUsing: anArray== that, when sent to an object along with an initialization list, returns the initialized object.
+!!!! Votre travail.
+Lire dans le protocole =='instance initialization'== la primitive ==initializeUsing : anArray== qui, lorsqu'elle est envoyée à un objet avec une liste d'initialisation, renvoie l'objet initialisé.
 
 [[[
 ObjTest >> testInitialize
@@ -345,18 +345,18 @@ ObjTest >> testInitialize
    self assert: (newInstance at: 3) equals: 2.
 ]]]
 
-!!! Static inheritance of instance variables
+!!! Héritage statique des variables d'instance
 
-Instance variables are statically inherited at class creation time.
-The simplest form of instance variable inheritance is to define the complete set of instance variables as the ''ordered fusion'' between the inherited instance variables and the locally defined instance variables.
-For simplicity and similarity with most languages, we chose to forbid duplicated instance variables in the inheritance chain.
+Les variables d'instance sont héritées statiquement au moment de la création de la classe.
+La forme la plus simple de l'héritage des variables d'instance est de définir l'ensemble complet des variables d'instance comme la ''fusion ordonnée'' entre les variables d'instance héritées et les variables d'instance définies localement.
+Pour des raisons de simplicité et de similitude avec la plupart des langages, nous avons choisi d'interdire les variables d'instance dupliquées dans la chaîne d'héritage.
 
-!!!! Your job.
-In the protocol =='iv inheritance'==, read and understand the primitive  ==computeNewIVFrom: superIVOrdCol with: localIVOrdCol==.
+!!!! Votre travail.
+Dans le protocole =='iv inheritance'==, lisez et comprenez la primitive ==computeNewIVFrom : superIVOrdCol with : localIVOrdCol==.
 
-The primitive takes two ordered collections of symbols and returns an ordered collection containing the union of the two ordered collections but with the extra constraint that the order of elements of the first ordered collection is kept. Look at the test method ==testInstanceVariableInheritance== below for examples.
+La primitive prend deux collections ordonnées de symboles et retourne une collection ordonnée contenant l'union des deux collections ordonnées mais avec la contrainte supplémentaire que l'ordre des éléments de la première collection ordonnée est conservé. Regardez la méthode de test ==testInstanceVariableInheritance== ci-dessous pour des exemples.
 
-Make sure that you execute the test method: ==testInstanceVariableInheritance== and that is passes.
+Assurez-vous que vous exécutez la méthode de test : ==testInstanceVariableInheritance== et qu'elle passe.
 
 [[[
 ObjTest >> testInstanceVariableInheritance
@@ -373,25 +373,25 @@ ObjTest >> testInstanceVariableInheritance
          = #(#a #z #b #t) asOrderedCollection)
 ]]]
 
-!!!!Side remark
-You could think that keeping the same order of the instance variables between a superclass and its subclass is not an issue. This is partly true in this simple implementation because the instance variable accessors compute each time the corresponding offset to access an instance variable using the primitive ==offsetFromClassOfInstanceVariable:==.  However, the structure (instance variable order) of a class is hardcoded by the primitives. That's why your implementation of the primitive ==computeNewIVFrom:with:== should take care of that aspect.
+!!!!Remarque annexe
+On pourrait penser que garder le même ordre des variables d'instance entre une superclasse et sa sous-classe n'est pas un problème. C'est en partie vrai dans cette implémentation simple car les accesseurs de variables d'instance calculent à chaque fois le décalage correspondant pour accéder à une variable d'instance en utilisant la primitive ==offsetFromClassOfInstanceVariable:==. Cependant, la structure (ordre des variables d'instance) d'une classe est codée en dur par les primitives. C'est pourquoi votre implémentation de la primitive ==computeNewIVFrom:with:== doit prendre en charge cet aspect.
 
-!!!Method management
-A class stores the behavior (expressed by methods) shared by all its instances into a method dictionary.
-In our implementation, we represent methods by associating a symbol to a Pharo ''block'', a kind of anonymous method.
-The block is then stored in the method dictionary of an objClass.
+!!!Gestion des méthodes
+Une classe stocke le comportement (exprimé par des méthodes) partagé par toutes ses instances dans un dictionnaire de méthodes.
+Dans notre implémentation, nous représentons les méthodes en associant un symbole à un ''bloc'' Pharo, une sorte de méthode anonyme.
+Le bloc est ensuite stocké dans le dictionnaire de méthodes d'une objClass.
 
-In this implementation we do not offer the ability to directly access instance variables of the class in which the method is defined.
-This could be done by sharing a common environment among all the methods.
-The programmer has to use accessors or the ==setIV== and ==getIV== objMethods defined on ==ObjObject== to access the instance variables.
-You can find the definition of those methods in the bootstrap protocol on the class side of ==Obj==.
+Dans cette implémentation, nous n'offrons pas la possibilité d'accéder directement aux variables d'instance de la classe dans laquelle la méthode est définie.
+Cela pourrait être fait en partageant un environnement commun entre toutes les méthodes.
+Le programmeur doit utiliser des accesseurs ou les méthodes ==setIV== et ==getIV== objMethods définies sur ==ObjObject== pour accéder aux variables d'instance.
+Vous pouvez trouver la définition de ces méthodes dans le protocole d'amorçage du côté de la classe de ==Obj==.
 
-In our ObjVLisp implementation, we do not have a syntax for message passing. Instead we call the primitives using the Pharo syntax for message passing (using the message ==send:withArguments:==).
-The expression ==objself getIV: x== is expressed in ObjVLisp as
+Dans notre implémentation d'ObjVLisp, nous n'avons pas de syntaxe pour le passage de messages. Au lieu de cela, nous appelons les primitives en utilisant la syntaxe Pharo pour le passage de messages (en utilisant le message ==send:withArguments:==).
+L'expression ==objself getIV : x== est exprimée en ObjVLisp comme suit
 ==objself send: #getIV withArguments: #(#x)==.
 
 
-The following code describes the definition of the accessor method ==x== defined on the objClass ==ObjPoint== that invokes a field access using the message ==getIV==.
+Le code suivant décrit la définition de la méthode accesseur ==x== définie sur l'objClass ==ObjPoint== qui invoque un accès au champ en utilisant le message ==getIV==.
 
 [[[
 ObjPoint
@@ -399,12 +399,12 @@ ObjPoint
    withBody: 'objself send: #getIV withArguments: #(#x)'.
 ]]]
 
-As a first approximation, this code will create the following block that will get stored into the class method dictionary: ==[ :objself | objself send: #getIV withArguments: #(#x) ]==.
-As you may notice, in our implementation, the receiver is always an explicit argument of the method. Here we named it ==objself==.
+En première approximation, ce code créera le bloc suivant qui sera stocké dans le dictionnaire des méthodes de la classe : ==[ :objself | objself send: #getIV withArguments: #(#x) ]==.
+Comme vous pouvez le remarquer, dans notre implémentation, le receveur est toujours un argument explicite de la méthode. Ici, nous l'avons nommé ==objself==.
 
-!!!! Defining a method and sending a message
+!!!! Définition d'une méthode et envoi d'un message
 
-As we want to keep this implementation as simple as possible, we define only one primitive for sending a message: it is ==send:withArguments:==. To see the mapping between Pharo and ObjVlisp ways of expressing message sent, look at the comparison below:
+Comme nous voulons garder cette implémentation aussi simple que possible, nous ne définissons qu'une seule primitive pour l'envoi d'un message : il s'agit de ==send:withArguments:==. Pour voir la correspondance entre les manières Pharo et ObjVlisp d'exprimer l'envoi d'un message, regardez la comparaison ci-dessous :
 
 [[[
 Pharo Unary: self odd
@@ -418,13 +418,13 @@ ObjVLisp: a send: #max: withArguments: #(4)
 ]]]
 
 
-While in Pharo you would write the following method definition:
+Alors qu'en Pharo, vous écririez la définition de méthode suivante :
 [[[
 bar: x
    self foo: x
 ]]]
 
-In our implementation of ObjVlisp you write:
+Dans notre implémentation de ObjVlisp vous écrivez :
 [[[
 anObjClass
    addMethod: #bar:
@@ -433,12 +433,12 @@ anObjClass
 ]]]
 
 
-!!!! Your job.
-We provide all the primitives that handle method definition.
-In the protocol =='method management'== look at the methods ==addMethod: aSelector args: aString withBody: aStringBlock==,
-==removeMethod: aSelector== and ==doesUnderstand: aSelector==. Implement ==bodyOfMethod: aSelector==.
+!!!! Votre travail.
+Nous fournissons toutes les primitives qui gèrent la définition des méthodes.
+Dans le protocole =='gestion des méthodes'== regardez les méthodes ==addMethod : aSelector args : aString withBody : aStringBlock==,
+==removeMethod : aSelector== et ==doesUnderstand : aSelector==. Mettez en œuvre ==bodyOfMethod : aSelector==.
 
-Make sure that you execute the test method: ==testMethodManagement==
+Assurez-vous que vous exécutez la méthode de test : ==testMethodManagement==
 
 [[[
 ObjTest >> testMethodManagement
@@ -457,11 +457,11 @@ ObjTest >> testMethodManagement
    self assert: (((pointClass bodyOfMethod: #x) value: aPoint) = 10)
 ]]]
 
-!!! Message passing and dynamic lookup
+!!! Passage de messages et recherche dynamique
 
-Sending a message is the result of the composition of ''method lookup'' and ''execution''. The following ==basicSend:withArguments:from:== primitive just implements it.
-First it looks up the method into the class or superclass of the receiver then if a
-method has been found it execute it, else ==lookup:== returned nil and we raise a Pharo error.
+L'envoi d'un message est le résultat de la composition de la ''recherche de méthode'' et de l''exécution''. La primitive ==basicSend:withArguments:from:== suivante ne fait que l'implémenter.
+Tout d'abord, elle recherche la méthode dans la classe ou la superclasse du receveur, si la
+méthode a été trouvée, elle l'exécute, sinon ==lookup:== retourne nil et nous levons une erreur Pharo.
 
 [[[
 Obj >> basicSend: selector withArguments: arguments from: aClass
@@ -474,7 +474,7 @@ Obj >> basicSend: selector withArguments: arguments from: aClass
       ifNil: [ Error signal: 'Obj message' , selector asString, ' not understood' ]
 ]]]
 
-Based on this primitive we can express ==send:withArguments:== as follows:
+Sur la base de cette primitive, nous pouvons exprimer ==send:withArguments:== comme suit :
 
 [[[
 Obj >> send: selector withArguments: arguments
@@ -484,13 +484,13 @@ Obj >> send: selector withArguments: arguments
 ]]]
 
 
-!!!Method lookup
-The primitive ==lookup: selector== applied to an objClass should return the method associated to the selector if it found it, else nil to indicate that it failed.
+!!!Recherche de méthode
+La primitive ==lookup : selector== appliquée à une objClass doit retourner la méthode associée au sélecteur si elle l'a trouvée, sinon nil pour indiquer qu'elle a échoué.
 
-!!!! Your job.
-Implement the primitive ==lookup: selector== that sent to an objClass with a method selector, a symbol and the initial receiver of the message, returns the method-body of the method associated with the selector in the objClass or its superclasses.  Moreover if the method is not found, nil is returned.
+!!!! Votre travail.
+Implémenter la primitive ==lookup : selector== qui, envoyée à un objClass avec un sélecteur de méthode, un symbole et le receveur initial du message, retourne le corps de la méthode associée au sélecteur dans l'objClass ou ses superclasses.  De plus, si la méthode n'est pas trouvée, nil est retourné.
 
-Make sure that you execute the test methods: ==testNilWhenErrorInLookup== and ==testRaisesErrorSendWhenErrorInLookup== whose code is given below:
+Assurez-vous d'exécuter les méthodes de test : ==testNilWhenErrorInLookup== et ==testRaisesErrorSendWhenErrorInLookup== dont le code est donné ci-dessous :
 
 [[[
 ObjTest >> testNilWhenErrorInLookup
@@ -510,17 +510,17 @@ ObjTest >> testRaisesErrorSendWhenErrorInLookup
 ]]]
 
 
-!!! Managing super
+!! Gestion de super
 
-To invoke a superclass hidden method, in Java and Pharo you use ==super==, which means that the lookup up will start above the class defining the method containing the super expression. In fact we can consider that in Java or Pharo, super is a syntactic sugar to refer to the receiver but changing where the method lookup starts. This is what we see in our implementation where we do not have syntactic support.
+Pour invoquer une méthode cachée d'une superclasse, en Java et Pharo vous utilisez ==super==, ce qui signifie que la recherche commencera au-dessus de la classe définissant la méthode contenant l'expression super. En fait, nous pouvons considérer qu'en Java ou Pharo, super est un sucre syntaxique pour se référer au receveur mais en changeant l'endroit où la recherche de la méthode commence. C'est ce que nous voyons dans notre implémentation où nous n'avons pas de support syntaxique.
 
-Let us see how we will express the following situation.
+Voyons comment nous allons exprimer la situation suivante.
 [[[
 bar: x
    super foo: x
 ]]]
 
-In our implementation of ObjVlisp we do not have a syntactic construct to express super, you have to use the ==super:withArguments:== Pharo message as follows.
+Dans notre implémentation de ObjVlisp, nous n'avons pas de construction syntaxique pour exprimer super, vous devez utiliser le message ==super:withArguments:== de Pharo comme suit.
 
 [[[
 anObjClass
@@ -529,7 +529,7 @@ anObjClass
   withBody: 'objself super: #foo: withArguments: #(#x) from: superClassOfClassDefiningTheMethod'.
 ]]]
 
-Note that ==superClassOfClassDefiningTheMethod== is a variable that is bound to the superclass of ==anObjClass== i.e., the class defining the method ==bar== (see later).
+Notez que ==superClassOfClassDefiningTheMethod== est une variable liée à la superclasse de ==anObjClass==, c'est-à-dire la classe définissant la méthode ==bar== (voir plus loin).
 
 [[[
 Pharo Unary: super odd
@@ -542,16 +542,16 @@ Pharo Keyword: super max: 4
 ObjVlisp: objself super: #max: withArguments: #(4) from: superClassOfClassDefiningTheMethod
 ]]]
 
-!!! Representing super
-We would like to explain you where the ==superClassOfClassDefiningTheMethod== variable comes from.
-When we compare the primitive ==send:withArguments:==, for super sends we added a third parameter to the primitive and we called it ==super:withArguments:from:==.
+!!! Représentation de super
+Nous aimerions vous expliquer d'où vient la variable ==superClassOfClassDefiningTheMethod==.
+Lorsque nous comparons la primitive ==send:withArguments:==, pour les super envois nous avons ajouté un troisième paramètre à la primitive et nous l'avons appelé ==super:withArguments:from:==.
 
-This extra parameter corresponds to the superclass of class in which the method is defined. This argument should always have the same name, i.e.,  ==superClassOfClassDefiningTheMethod==. This variable will be bound when the method is added in the method dictionary of an objClass.
+Ce paramètre supplémentaire correspond à la superclasse de la classe dans laquelle la méthode est définie. Cet argument doit toujours avoir le même nom, c'est-à-dire ==superClassOfClassDefiningTheMethod==. Cette variable sera liée lorsque la méthode sera ajoutée dans le dictionnaire des méthodes d'une objClass.
 
-If you want to understand how we bind the variable, here is the explanation:
-In fact, a method is not only a block but it needs to know the class that defines it or its superclass. We added such information using currification. (a currification is the transformation of a function with n arguments into function with less argument but an environment capture: ==f(x,y)= (+ x y)== is transformed into a function ==f(x)=f(y)(+ x y)== that returns a function of a single argument y and where x is bound to a value and obtain a function generator). For example, ==f(2,y)== returns a function ==f(y)=(+ 2 y)== that adds its parameter to 2. A currification acts as a generator of function where one of the argument of the original function is fixed.
+Si vous voulez comprendre comment nous lions la variable, voici l'explication :
+En fait, une méthode n'est pas seulement un bloc mais elle a besoin de connaître la classe qui la définit ou sa superclasse. Nous avons ajouté cette information en utilisant la curryfication. (une curryfication est la transformation d'une fonction à n arguments en fonction avec moins d'argument mais une capture d'environnement : ==f(x,y)= (+ x y)== est transformée en une fonction ==f(x)=f(y)(+ x y)== qui retourne une fonction d'un seul argument y et où x est lié à une valeur et obtient un générateur de fonction). Par exemple, ==f(2,y)== renvoie une fonction ==f(y)=(+ 2 y)== qui ajoute son paramètre à 2. Une curryfication agit comme un générateur de fonction où l'un des arguments de la fonction originale est fixé.
 
-In Pharo we wrap the block representing the method around another block with a single parameter and we bind this parameter with the superclass of the class defining the method. When the method is added to the method dictionary, we evaluate the first block with the superclass as parameter as illustrated as follows:
+Dans Pharo, nous enveloppons le bloc représentant la méthode autour d'un autre bloc avec un seul paramètre et nous lions ce paramètre avec la superclasse de la classe définissant la méthode. Lorsque la méthode est ajoutée au dictionnaire des méthodes, nous évaluons le premier bloc avec la superclasse comme paramètre, comme illustré ci-dessous :
 
 [[[
 method := [ :superClassOfClassDefiningTheMethod |
@@ -561,17 +561,17 @@ method := [ :superClassOfClassDefiningTheMethod |
 method value: (Obj giveClassNamed: self objSuperclassId)
 ]]]
 
-So now you know where the ==superClassOfClassDefiningTheMethod== variable comes from.
-Make sure that you execute the test method:  ==testMethodLookup== and that is passes.
+Vous savez donc maintenant d'où vient la variable ==superClassOfClassDefiningTheMethod==.
+Assurez-vous que vous exécutez la méthode de test : ==testMethodLookup== et qu'elle passe.
 
-!!!! Your job.
-Now you should be implement ==super: selector withArguments: arguments from: aSuperclass== using the primitive ==basicSend:withArguments:from:==.
+!!!! Votre travail.
+Vous devriez maintenant mettre en œuvre ==super : selector withArguments : arguments from : aSuperclass== en utilisant la primitive ==basicSend:withArguments:from:==.
 
-!!!Handling not understood messages
+!!!Gestion des messages non compris
 
-Now we can revisit error handling. Instead of raising a Pharo error, we want to send an ObjVlisp message to the receiver of the message to give him a chance to trap the error.
+Nous pouvons maintenant revoir la gestion des erreurs. Au lieu de générer une erreur Pharo, nous voulons envoyer un message ObjVlisp au destinataire du message pour lui donner une chance de détecter l'erreur.
 
-Compare the two following versions of ==basicSend: selector withArguments: arguments from: aClass== and propose an implementation of ==sendError: selector withArgs: arguments==.
+Comparez les deux versions suivantes de ==basicSend : selector withArguments : arguments from : aClass== et proposez une implémentation de ==sendError : selector withArgs : arguments==.
 
 [[[
 Obj >> basicSend: selector withArguments: arguments from: aClass
@@ -592,7 +592,7 @@ Obj >> basicSend: selector withArguments: arguments from: aClass
       ifNil: [ self sendError: selector withArgs: arguments ]
 ]]]
 
-It should be noted that the objVlisp method is defined as follows in the ==ObjObject== class (see the bootstrap method on the class side of Obj). The obj ==error== method expects a single parameter: an array of arguments whose first element is the selector of the not understood message.
+Il convient de noter que la méthode objVlisp est définie comme suit dans la classe ==ObjObject== (voir la méthode bootstrap du côté de la classe Obj). La méthode obj ==error== attend un seul paramètre : un tableau d'arguments dont le premier élément est le sélecteur du message non compris.
 
 [[[
 objObject
@@ -608,22 +608,22 @@ Obj >> sendError: selector withArgs: arguments
    ^ self send: #error withArguments:  {(arguments copyWithFirst: selector)}
 ]]]
 
-Make sure that you read and execute the test method: ==testSendErrorRaisesErrorSendWhenErrorInLookup==.
-Have a look at the implementation of the ==#error== method defined in ==ObjObject== and in the ==assembleObjectClass== of the ObjTest class.
+Assurez-vous de lire et d'exécuter la méthode de test : ==testSendErrorRaisesErrorSendWhenErrorInLookup==.
+Regardez l'implémentation de la méthode ==#error== définie dans ==ObjObject== et dans ==assembleObjectClass== de la classe ObjTest.
 
 
 
-!!! Bootstrapping the system
+!! Amorçage du système
 
-Now you have implemented all the behavior we need, you are ready to bootstrap the system: this means creating the kernel consisting of  ==ObjObject== and ==ObjClass== classes from themselves. The idea of a smart bootstrap is to be as lazy as possible and to use the system to create itself by creating fast a fake but working first class with which we will build the rest.
+Maintenant que vous avez implémenté tous les comportements dont nous avons besoin, vous êtes prêt à amorcer le système : cela signifie créer le noyau constitué des classes ==ObjObject== et ==ObjClass== à partir d'elles-mêmes. L'idée d'un bootstrap intelligent est d'être aussi paresseux que possible et d'utiliser le système pour se créer lui-même en créant rapidement une première classe fausse mais fonctionnelle avec laquelle nous construirons le reste.
 
-Three steps compose the ObjVlisp bootstrap,
-# we create by hand the minimal part of  the objClass ==ObjClass==  and then
-# we use it to create normally ==ObjObject== objClass and then
-# we recreate normally and completely ==ObjClass==.
+Trois étapes composent le bootstrap ObjVlisp,
+# nous créons à la main la partie minimale de l'objClass ==ObjClass== et ensuite
+# nous l'utilisons pour créer normalement ==ObjObject== objClass et ensuite
+# nous recréons normalement et complètement ==ObjClass==.
 
-These three steps are described by the following bootstrap method of Obj class.
-Note the bootstrap is defined as class methods of the class Obj.
+Ces trois étapes sont décrites par la méthode bootstrap suivante de la classe Obj.
+Notez que le bootstrap est défini comme les méthodes de la classe Obj.
 
 [[[
 Obj class >> bootstrap
@@ -635,13 +635,13 @@ Obj class >> bootstrap
       self createObjClass.
 ]]]
 
-To help you to implement the functionality of the objClasses ==ObjClass== and
-==ObjObject==, we defined another set of tests in the class ==ObjTestBootstrap==.
-Read them.
+Pour vous aider à implémenter la fonctionnalité des classes d'objets ==ObjClass== et
+==ObjObject==, nous avons défini un autre ensemble de tests dans la classe ==ObjTestBootstrap==.
+Lisez-les.
 
-!!! Manually creating ObjClass
+!!! Création manuelle de la classe ObjClass
 
-The first step is to create manually the class ==ObjClass==. By manually we mean create an array (because we chose an array to represent instances and classes in particular) that represents the objClass ==ObjClass==, then define its methods. You will implement/read this in the primitive ==manuallyCreateObjClass== as shown below:
+La première étape consiste à créer manuellement la classe ==ObjClass==. Par manuellement, nous entendons créer un tableau (car nous avons choisi un tableau pour représenter les instances et les classes en particulier) qui représente l'objClass ==ObjClass==, puis définir ses méthodes. Vous implémenterez/liserez ceci dans la primitive ==manuallyCreateObjClass== comme indiqué ci-dessous :
 
 [[[
 Obj class >> manuallyCreateObjClass
@@ -658,16 +658,16 @@ Obj class >> manuallyCreateObjClass
 
 
 
-For this purpose, you have to implement/read all the primitives that
-compose it.
+Pour cela, vous devez implémenter/lire toutes les primitives qui le
+le composent.
 
-!!!! Your job.
-At the class level in the protocol =='bootstrap objClass manual'== read or implement:
-the primitive ==manualObjClassStructure== that returns an objObject that represents the class ==ObjClass==.
+!!!! Votre travail.
+Au niveau de la classe dans le protocole =='bootstrap objClass manual'== lire ou implémenter :
+la primitive ==manualObjClassStructure== qui renvoie un objObject qui représente la classe ==ObjClass==.
 
-Make sure that you execute the test method: ==testManuallyCreateObjClassStructure==
+Assurez-vous d'exécuter la méthode de test : ==testManuallyCreateObjClassStructure==.
 
-- As the ==initialize== of this first phase of the bootstrap is not easy we give you its code. Note that the definition of the objMethod ==initialize== is done in the primitive method ==defineManualInitializeMethodIn:==.
+- Comme le ==initialize== de cette première phase du bootstrap n'est pas facile nous vous donnons son code. Notez que la définition de l'objMethod ==initialize== est faite dans la méthode primitive ==defineManualInitializeMethodIn:==.
 
 [[[
 Obj class >> defineManualInitializeMethodIn: class
@@ -692,10 +692,10 @@ Obj class >> defineManualInitializeMethodIn: class
       objself'
 ]]]
 
-Note that this method works without inheritance since the class ==ObjObject== does not
-exist yet.
+Notez que cette méthode fonctionne sans héritage puisque la classe ==ObjObject==
+n'existe pas encore.
 
-The primitive ==defineAllocateMethodIn: anObjClass== defines in anObjClass passed as argument the objMethod ==allocate==. ==allocate== takes only one argument: the class for which a new instance is created as shown below:
+La primitive ==defineAllocateMethodIn : anObjClass== définit dans unObjClass passé en argument la méthode ==allocate==. ==allocate== ne prend qu'un seul argument : la classe pour laquelle une nouvelle instance est créée comme indiqué ci-dessous :
 
 [[[
 defineAllocateMethodIn: class
@@ -705,28 +705,28 @@ defineAllocateMethodIn: class
       withBody: 'objself allocateAnInstance'
 ]]]
 
-Following the same principle, define the primitive ==defineNewMethodIn: anObjClass== that defines in anObjClass passed as argument the objMethod ==new==. ==new== takes two arguments: a class and an  initargs-list. It should invoke the objMethod ==allocate== and ==initialize==.
+Suivant le même principe, définissez la primitive ==defineNewMethodIn : anObjClass== qui définit dans uneObjClass passée en argument l'objMethod ==new==. ==new== prend deux arguments : une classe et une initargs-list. Elle doit invoquer les méthodes objMethod ==allocate== et ==initialize==.
 
-!!!! Your job.
+!!!! Votre travail.
 
-Make sure that you read and execute the test method: ==testManuallyCreateObjClassAllocate==
+Assurez-vous de lire et d'exécuter la méthode de test : ==testManuallyCreateObjClassAllocate==.
 
-!!!! Remarks
-Read carefully the following remarks below and the code.
-- In the objMethod ==manualObjClassStructure==, the instance variable inheritance is simulated. Indeed the instance variable array contains ==#class== that should normally be inherited from ==ObjObject== as we will see in the third phase of the bootstrap.
+!!!! Remarques
+Lisez attentivement les remarques ci-dessous et le code.
+- Dans la méthode objMethod ==manualObjClassStructure==, l'héritage des variables d'instance est simulé. En effet, le tableau de variables d'instance contient ==#class== qui devrait normalement être hérité de ==ObjObject== comme nous le verrons dans la troisième phase du bootstrap.
 
-- Note that the class is declared into the class repository using the method ==declareClass:==.
+- Notez que la classe est déclarée dans le référentiel de classes à l'aide de la méthode ==declareClass:==.
 
-- Note the method ==#initialize== is method of the metaclass ==ObjClass==: when you create a class the initialize method is invoked on a class! The ==initialize== objMethod defines on ==ObjClass== has two aspects: the first one dealing with the initialization of the class like any other instance (first line). This behavior is normally done using a super call to invoke the ==initialize== method defined in ==ObjObject==. The final version of the ==initialize== method will do it using perform. The second one dealing with the initialization of classes: performing the instance variable inheritance, then computing the keywords of the newly created class. Note in this final step that the keyword array  does not contain the ==#class:== keyword because we do not want to let the user modify the class of an object.
+- Notez que la méthode ==#initialize== est une méthode de la métaclasse ==ObjClass== : lorsque vous créez une classe, la méthode initialize est invoquée sur une classe ! La méthode ==initialize== définie sur la métaclasse ==ObjClass== a deux aspects : le premier concerne l'initialisation de la classe comme toute autre instance (première ligne). Ce comportement est normalement réalisé en utilisant un super appel pour invoquer la méthode ==initialize== définie dans ==ObjObject==. La version finale de la méthode ==initialize== le fera en utilisant perform. La seconde traite de l'initialisation des classes : effectuer l'héritage des variables d'instance, puis calculer les mots-clés de la classe nouvellement créée. Notez dans cette dernière étape que le tableau de mots-clés ne contient pas le mot-clé ==#class:== car nous ne voulons pas laisser l'utilisateur modifier la classe d'un objet.
 
 
-!!!Creation of ObjObject
+!!!Création d'un ObjObject
 
-Now you are in the situation where you can create the first real and normal class of the system: the class ==ObjObject==. To do  that you send the message ==new== to class ==ObjClass== specifying that the class you are creating is named ==#ObjObject== and
-only have one instance variable called ==class==. Then you will add the methods defining the behavior shared by all the objects.
+Vous êtes maintenant dans la situation où vous pouvez créer la première classe réelle et normale du système : la classe ==ObjObject==. Pour ce faire, vous envoyez le message ==new== à la classe ==ObjClass== en spécifiant que la classe que vous créez est nommée ==#ObjObject== et
+que vous n'avez qu'une seule variable d'instance appelée ==class==. Vous ajouterez ensuite les méthodes définissant le comportement partagé par tous les objets.
 
-!!!! Your job: objObjectStructure
-Implement/read the following primitive ==objObjectStructure== that creates the ==ObjObject== by invoking the ==new== message to the class ==ObjClass==:
+!!!! Votre travail : objObjectStructure
+Implémentez/lisez la primitive suivante ==objObjectStructure== qui crée le ==ObjObject== en invoquant le message ==new== à la classe ==ObjClass== :
 
 [[[
 Obj class >> objObjectStructure
@@ -736,12 +736,12 @@ Obj class >> objObjectStructure
       withArguments: #(#(#name: #ObjObject #iv: #(#class)))
 ]]]
 
-The class ==ObjObject== is named ==ObjObject==, has only one instance variable ==class== and does not have a superclass because it is the inheritance graph root.
+La classe ==ObjObject== est nommée ==ObjObject==, possède une seule variable d'instance ==class== et n'a pas de superclasse car elle est la racine du graphe d'héritage.
 
-!!!! Your job: createObjObject
+!!!! Votre travail : createObjObject
 
-Now implement the primitive ==createObjObject== that calls ==objObjectStructure== to obtain the ==objObject== representing
-==objObject== class and define methods in it. To help you we give here the beginning of such a method
+Implémentez maintenant la primitive ==createObjObject== qui appelle ==objObjectStructure== pour obtenir le ==objObject== représentant
+la classe ==objObject== et y définir des méthodes. Pour vous aider, nous donnons ici le début d'une telle méthode
 
 [[[
 Obj class >> createObjObject
@@ -755,27 +755,27 @@ Obj class >> createObjObject
    ^ objObject
 ]]]
 
-Implement the following methods in ==ObjObject==
-- the objMethod ==class== that given an objInstance returns its class (the objInstance that represents the class).
-- the objMethod ==isClass== that returns false.
-- the objMethod ==isMetaClass== that returns false.
-- the objMethod ==error== that takes two arguments the receiver and the selector of the original invocation and raises an  error.
-- the objMethod ==getIV== that takes the receiver and an attribute name, aSymbol, and returns its value for the receiver.
-- the objMethod ==setIV== that takes the receiver, an attribute name and a value and sets the value of the given attribute to the given value.
-- the objMethod ==initialize== that takes the receiver and an initargs-list and initializes the receiver according to the specification given by the  initargs-list. Note that here the ==initialize== method only fill  the instance according to the specification given by the initargs-list. Compare with the ==initialize== method defined on ==ObjClass==.
+Implémenter les méthodes suivantes dans ==ObjObject==
+- l'objMethod ==class== qui, étant donné une objInstance, retourne sa classe (l'objInstance qui représente la classe).
+- l'objMethod ==isClass== qui renvoie false.
+- l'objMethod ==isMetaClass== qui renvoie false.
+- l'objMethod ==error== qui prend deux arguments : le receveur et le sélecteur de l'invocation originale et qui lève une erreur.
+- l'objMethod ==getIV== qui prend le receveur et un nom d'attribut, aSymbol, et renvoie sa valeur pour le receveur.
+- L'objMethod ==setIV== qui prend le receveur, un nom d'attribut et une valeur et définit la valeur de l'attribut donné à la valeur donnée.
+- l'objMethod ==initialize== qui prend le receveur et une initargs-list et initialise le receveur selon la spécification donnée par l'initargs-list. Notez qu'ici, la méthode ==initialize== ne fait que remplir l'instance conformément à la spécification donnée par la liste d'initargs. Comparez avec la méthode ==initialize== définie sur ==ObjClass==.
 
-Make sure that you read and execute the test method: ==testCreateObjObjectStructure==
+Assurez-vous de lire et d'exécuter la méthode de test : ==testCreateObjObjectStructure==.
 
-In particular notice that this class does not implement the class method ==new== because it is not a metaclass but does implement the instance method ==initialize== because any object should be initialized.
+Remarquez en particulier que cette classe n'implémente pas la méthode de classe ==new== parce qu'elle n'est pas une métaclasse, mais qu'elle implémente la méthode d'instance ==initialize== parce que tout objet doit être initialisé.
 
-!!!! Your job: run the tests
-- Make sure that you read and execute the test method: ==testCreateObjObjectMessage==
-- Make sure that you read and execute the test method: ==testCreateObjObjectInstanceMessage==
+!!!! Votre travail : exécuter les tests
+- Assurez-vous de lire et d'exécuter la méthode de test : ==testCreateObjObjectMessage==.
+- Assurez-vous que vous lisez et exécutez la méthode de test : ==testCreateObjObjectInstanceMessage==.
 
 
-!!! Creation of ObjClass
+!!! Création de la classe ObjClass
 
-Following the same approach, you can now recreate completely the class ==ObjClass==. The primitive ==createObjClass== is responsible to create the final class ==ObjClass==. So you will implement it and define all the primitive it needs. Now we only define what is specific to classes, the rest is inherited from the superclass of the class ==ObjClass==, the class ==ObjObject==.
+En suivant la même démarche, vous pouvez maintenant recréer complètement la classe ==ObjClass==. La primitive ==createObjClass== est chargée de créer la classe finale ==ObjClass==. Vous allez donc l'implémenter et définir toutes les primitives dont elle a besoin. Maintenant nous ne définissons que ce qui est spécifique aux classes, le reste est hérité de la superclasse de la classe ==ObjClass==, la classe ==ObjObject==.
 
 [[[
 Obj class >> createObjClass
@@ -798,14 +798,14 @@ Obj class >> createObjClass
    ^ objClass
 ]]]
 
-To make the method ==createObjClass== working we should implement the method it calls. Implement then:
+Pour que la méthode ==createObjClass== fonctionne, nous devons implémenter la méthode qu'elle appelle. Implémenter alors
 
-- the primitive ==objClassStructure== that creates the ==ObjClass== class  by invoking the ==new== message to the class ==ObjClass==. Note that during this method the ==ObjClass== symbol refers to  two different entities because the new class that is created using the old one is declared in the class dictionary with the same name.
+- la primitive ==objClassStructure== qui crée la classe ==ObjClass== en invoquant le message ==new== à la classe ==ObjClass==. Notez qu'au cours de cette méthode le symbole ==ObjClass== fait référence à deux entités différentes car la nouvelle classe qui est créée en utilisant l'ancienne est déclarée dans le dictionnaire des classes avec le même nom.
 
 
-!!!! Your job.
-Make sure that you read and execute the test method: ==testCreateObjClassStructure==.
-Now implement the primitive ==createObjClass== that starts as follow:
+!!!! Votre travail.
+Assurez-vous d'avoir lu et exécuté la méthode de test : ==testCreateObjClassStructure==.
+Implémentez maintenant la primitive ==createObjClass== qui commence comme suit :
 
 [[[
 Obj class >> createObjClass
@@ -819,9 +819,9 @@ Obj class >> createObjClass
    ^ objClass
 ]]]
 
-Also define the following methods:
-- the objMethod ==isClass== that returns true.
-- the objMethod ==isMetaclass== that returns true.
+Définissez également les méthodes suivantes :
+- la méthode objMethod ==isClass== qui renvoie true.
+- la méthode objMethod ==isMetaclass== qui renvoie true.
 
 [[[
 objClass
@@ -838,7 +838,7 @@ objClass
 ]]]
 
 
-- the primitive ==defineInitializeMethodIn: anObjClass== that adds the objMethod ==initialize== to the objClass passed as argument. The objMethod ==initialize== takes the receiver (an objClass) and an initargs-list and initializesthe receiver according to the specification given by the initargs-list. In particular, it should be initialized as any other object, then it should compute its instance variable (i.e., inherited instance variables are computed), the keywords are also computed, the method dictionary should be defined and the class is then declared as an existing one. We provide the following template to help you.
+- la primitive ==defineInitializeMethodIn : anObjClass== qui ajoute l'objMethod ==initialize== à l'objClass passée en argument. L'objMethod ==initialize== prend le receveur (une objClass) et une liste d'initargs et initialise le receveur selon les spécifications données par la liste d'initargs. En particulier, il doit être initialisé comme n'importe quel autre objet, puis il doit calculer sa variable d'instance (c'est-à-dire que les variables d'instance héritées sont calculées), les mots-clés sont également calculés, le dictionnaire de méthodes doit être défini et la classe est ensuite déclarée comme une classe existante. Nous vous fournissons le modèle suivant pour vous aider.
 
 [[[
 Obj class>>defineInitializeMethodIn: objClass
@@ -876,26 +876,26 @@ Obj class >> defineInitializeMethodIn: objClass
          objself'
 ]]]
 
-!!!! Your job.
-Make sure that you execute the test method: ==testCreateObjClassMessage==.
+!!!! Votre travail.
+Assurez-vous que vous exécutez la méthode de test : ==testCreateObjClassMessage==.
 
-Note the following points:
-- The locally specified instance variables now are just the instance variables that  describe a class. The instance variable ==class== is inherited from ==ObjObject==.
-- The ==initialize== method now does a super send to invoke the initialization performed by ==ObjObject==.
+Notez les points suivants :
+- Les variables d'instance spécifiées localement ne sont plus que les variables d'instance qui décrivent une classe. La variable d'instance ==class== est héritée de ==ObjObject==.
+- La méthode ==initialize== effectue maintenant un super envoi pour invoquer l'initialisation effectuée par ==ObjObject==.
 
 
-!!!First User Classes: ObjPoint
-Now that ObjVLisp is created and we can start to program some classes.
-Implement the class ==ObjPoint== and ==ObjColoredPoint==. Here is a possible implementation.
+!!!Premières classes d'utilisateurs : ObjPoint
+Maintenant que ObjVLisp est créé, nous pouvons commencer à programmer quelques classes.
+Implémentez la classe ==ObjPoint== et ==ObjColoredPoint==. Voici une implémentation possible.
 
-You can choose to implement it at the class level of the class Obj or even better in class named ==ObjPointTest==.
+Vous pouvez choisir de l'implémenter au niveau de la classe Obj ou mieux encore dans une classe nommée ==ObjPointTest==.
 
-Pay attention that your scenario covers the following aspects:
-- First just create the class ==ObjPoint==.
-- Create an instance of the class ==ObjPoint==.
-- Send some messages defined in ==ObjObject== to this instance.
+Veillez à ce que votre scénario couvre les aspects suivants :
+- Créez tout d'abord la classe ==ObjPoint==.
+- Créez une instance de la classe ==ObjPoint==.
+- Envoyez à cette instance certains messages définis dans ==ObjObject==.
 
-Define the class ==ObjPoint== so that we can create points as below (create a Pharo method to define it).
+Définissez la classe ==ObjPoint== afin de pouvoir créer des points comme ci-dessous (créez une méthode Pharo pour la définir).
 
 [[[
 ObjClass send: #new
@@ -909,7 +909,7 @@ aPoint send: #setIV withArguments: #(#x 25).
 aPoint send: #getIV withArguments: #(#x).
 ]]]
 
-Then add some functionality to the class ==ObjPoint== like the methods ==x==, ==x:==, ==display== which prints the receiver.
+Ajoutez ensuite quelques fonctionnalités à la classe ==ObjPoint== comme les méthodes ==x==, ==x:==, ==display== qui impriment le receveur.
 
 [[[
 Obj ObjPoint
@@ -924,7 +924,7 @@ Obj ObjPoint
    cr'.
 ]]]
 
-Then test these new functionality.
+Puis testez ces nouvelles fonctionnalités.
 
 [[[
 aPoint send: #x withArguments: #().
@@ -933,10 +933,10 @@ aPoint send: #display withArguments: #().
 ]]]
 
 
-!!! First User Classes: ObjColoredPoint
-Following the same idea, define the class ==ObjColored==.
+!!! Premières classes d'utilisateurs : ObjColoredPoint
+En suivant la même idée, définissez la classe ==ObjColored==.
 
-Create an instance and send it some basic messages.
+Créez une instance et envoyez-lui quelques messages de base.
 
 [[[
 aColoredPoint := coloredPointClass
@@ -951,8 +951,8 @@ aColoredPoint send: #getIV withArguments: #(#x).
 aColoredPoint send: #getIV withArguments: #(#color).
 ]]]
 
-!!!! Your job.
-Define some functionality and invoke them: the method color,  implement the method display so that it invokes the superclass and adds some information related to the color. Here is an example:
+!!!! Votre travail.
+Définissez quelques fonctionnalités et invoquez-les : la méthode color, implémentez la méthode display de façon à ce qu'elle invoque la superclasse et ajoute quelques informations relatives à la couleur. Voici un exemple :
 
 [[[
 coloredPointClass addUnaryMethod: #display
@@ -972,11 +972,11 @@ aColoredPoint send: #display withArguments: #()
 
 
 
-!!! A First User Metaclass: ObjAbstract
-Now implement the metaclass ==ObjAbstract== that defines instances (classes) that are abstract i.e., that
-cannot create instances. This class should raise an error when it executes the ==new== message.
+!!! Une métaclasse pour les premiers utilisateurs : ObjAbstract
+Implémentez maintenant la métaclasse ==ObjAbstract== qui définit les instances (classes) qui sont abstraites c'est-à-dire qui
+ne peuvent pas créer d'instances. Cette classe devrait lever une erreur lorsqu'elle exécute le message ==new==.
 
-Then the following shows you a possible use of this metaclass.
+L'exemple suivant vous montre une utilisation possible de cette métaclasse.
 [[[
 ObjAbstractClass
   send: #new
@@ -988,20 +988,20 @@ ObjAbstractPoint send: #new
    withArguments: #(#(#x: 24 #y: 6))        "should raise an error"
 ]]]
 
-You should redefine the ==new== method. Note that the ==ObjAbstractClass== is an instance of ==ObjClass== because this is a class and inherits from it  because this is a metaclass.
+Vous devez redéfinir la méthode ==new==. Notez que la ==ObjAbstractClass== est une instance de ==ObjClass== parce que c'est une classe et en hérite parce que c'est une métaclasse.
 
 
-!!!New features that you could implement
+!!!Nouvelles fonctionnalités que vous pouvez implémenter
 
-You can implement some simple features:
-- define a metaclass that automatically defines accessors for the specified instances variables.
-- avoid that we can change the selector and the arguments when calling a super send.
+Vous pouvez implémenter quelques fonctionnalités simples :
+- définir une métaclasse qui définit automatiquement des accesseurs pour les variables des instances spécifiées.
+- éviter que l'on puisse changer le sélecteur et les arguments lors de l'appel d'un super envoi.
 
-!!!! Shared Variables
-Note that contrary to the proposition made in the 6th postulate of the original ObjVLisp model, class instance variables are not equivalent of shared variables.  According to the 6th postulate, a shared variable will be stored into the instance representing the class and not in an instance variable of the class representing the shared variables.  For example if a workstation has a shared variable named ==domain==.  But domain should not be an extra instance variable of the class of ==Workstation==. Indeed domain has nothing to do with class description.
+!!!! Variables partagées
+Notez que contrairement à la proposition faite dans le 6ème postulat du modèle original d'ObjVLisp, les variables d'instance de classe ne sont pas équivalentes aux variables partagées.  Selon le 6ème postulat, une variable partagée sera stockée dans l'instance représentant la classe et non dans une variable d'instance de la classe représentant les variables partagées.  Par exemple si une station de travail a une variable partagée nommée ==domaine==. Mais domaine ne devrait pas être une variable d'instance supplémentaire de la classe de ==station de travail==. En effet, domaine n'a rien à voir avec la description de la classe.
 
-The correct solution is that ==domain== is a value hold into the list of the shared variable of the class ==Workstation==. This means that
-a ''class'' has an extra information to describe it: an instance variable ==sharedVariable== holding pairs.  So we should be able to write
+La solution correcte est que ==domain== est une valeur maintenue dans la liste de la variable partagée de la classe ==Workstation==. Cela signifie que
+une ''classe'' possède une information supplémentaire pour la décrire : une variable d'instance ==sharedVariable== contenant des paires.  Nous devrions donc être en mesure d'écrire
 
 [[[
 Obj Workstation getIV: #sharedVariable
@@ -1012,7 +1012,7 @@ and get
  #((domain 'inria.fr'))
 ]]]
 
-introduce shared variables: add a new instance variable in the
-class ==ObjClass== to hold a dictionary of shared variable bindings (a
-symbol and a value) that can be queried using specific methods:
+Introduire les variables partagées : ajouter une nouvelle variable d'instance dans la classe ==ObjClass==.
+classe ==ObjClass== pour contenir un dictionnaire de liaisons de variables partagées (un
+symbole et une valeur) qui peut être interrogé à l'aide de méthodes spécifiques :
 ==sharedVariableValue:==, ==sharedVariableValue:put:==.
