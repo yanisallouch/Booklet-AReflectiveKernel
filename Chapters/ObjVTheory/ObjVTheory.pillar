@@ -345,7 +345,7 @@ B new bar
 >>> 50
 ]]]
 
-+self représente toujours le receveur.file://figures/LookupWithSelfInSuperclassMethod.pdf|width=40|label=fig:LookupWithSelfInSuperclassMethod+
++self représente toujours le receveur.>file://figures/LookupWithSelfInSuperclassMethod.pdf|width=40|label=fig:LookupWithSelfInSuperclassMethod+
 
 +Le diagramme séquentiel de self représente toujours le receveur.>file://figures/SelfLookupSequenceDiagram.pdf|width=60|label=fig:SelfLookupSequenceDiagram+
 
